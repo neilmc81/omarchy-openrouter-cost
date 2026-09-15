@@ -1,50 +1,93 @@
-# OpenRouter API Cost — Omarchy bar plugin
+# OpenRouter API Cost — Omarchy bar widget
 
-A live OpenRouter spend widget in the top bar:
-bar icon = **today's spend**; click = dropdown with the current **hour**, **today**,
-**this week**, **this month**, and **all-time** cost, plus your **weekly limit**
-and **account balance**.
+A live [OpenRouter](https://openrouter.ai) spend tracker for the Omarchy
+status bar. The bar icon shows **today's spend**; clicking opens a dropdown
+with the current **hour**, **today**, **this week**, **this month**, and
+**all-time** cost, plus your **weekly limit** and **account balance**.
 
-## Setup — done for you
 
-Your OpenRouter API key(s) were found automatically and wired into
-`~/.config/openrouter-cost/conf.json` (chmod 600). Two keys are currently
-configured — the Hermes one (`~/.hermes/.env`) and the OpenCode one
-(`~/.local/share/opencode/auth.json`) — and the widget **aggregates cost across
-both** (they're separate accounts). Add/remove keys any time by editing
-`conf.json`:
 
-```json
-{ "api_keys": ["sk-or-...", "sk-or-..."] }
+## Features
+
+- Live spend in the bar: hourly, daily, weekly, monthly, all-time
+- Weekly credit limit and remaining balance
+- Aggregates cost across multiple API keys / accounts
+- Hourly figure computed locally from a rolling history — no pagination hacks
+- Auto-refreshes every 5 minutes, on click, and from a manual Refresh button
+
+## Requirements
+
+- Omarchy (Quickshell-based shell with QML plugin support)
+- An [OpenRouter API key](https://openrouter.ai/account/keys)
+- Python 3 (only for the `update.py` data fetcher)
+
+## Installation
+
+```bash
+# 1. Clone the plugin into your Omarchy plugins directory
+git clone https://github.com/neilmc81/omarchy-openrouter-cost \
+    ~/.config/omarchy/plugins/openrouter.cost
+
+# 2. Add your API key(s)
+#    Either set the environment variable OPENROUTER_API_KEY, or create
+#    ~/.config/openrouter-cost/conf.json:
+#    { "api_keys": ["sk-or-...", "sk-or-..."] }
+
+# 3. Register the widget in ~/.config/omarchy/shell.json (bar section),
+#    then reload the shell:
+#    omarchy restart shell
 ```
 
-(or drop a single key as `$OPENROUTER_API_KEY` / in `~/.config/openrouter-cost/key`).
+> **Security:** key files are read with 0600 permissions and match the OpenRouter
+> `sk-or-v1-` format. Keys are never written into the plugin directory and
+> never logged.
 
-Refresh happens automatically every 5 min, on click, and there's a Refresh button
-in the panel. To fetch once manually:
+## Configuration
 
-    ~/.config/omarchy/plugins/openrouter.cost/update.py
+Keys and limits live in `~/.config/openrouter-cost/conf.json`:
 
-## Data source (real, no pagination hacks)
+| Key                    | Purpose                             |
+|------------------------|-------------------------------------|
+| `api_keys` (array)     | One or more OpenRouter keys         |
+| `weekly_limit_usd`     | Optional weekly cap shown in the UI |
 
-OpenRouter exposes no public per-request history list (the `/generation` endpoint
-requires an id), so this uses the account's own accounting:
+A single key may also be provided via `$OPENROUTER_API_KEY`.
+Overrides are picked up on the next refresh (no shell restart needed).
 
-- `GET /api/v1/auth/key` → `usage` (all-time), `usage_daily`, `usage_weekly`,
-  `usage_monthly`, plus `limit` / `limit_reset` / `limit_remaining`.
-- `GET /api/v1/credits` → top-up balance.
-- **Hourly** isn't in any API response, so it's computed locally: the updater
-  appends the live `usage` total to `history.jsonl` every run and diffs "now"
-  vs the sample taken at/just before the current hour. It shows `—` until the
-  widget has been running across an hour boundary (a few minutes of warm-up).
+## Data source
 
-Cost values are OpenRouter credits, which are denominated in US dollars.
+OpenRouter exposes no public per-request history list (the `/generation`
+endpoint requires an id), so the widget uses the account's own accounting
+endpoints:
+
+- `GET /api/v1/auth/key` — `usage` (all-time), `usage_daily`, `usage_weekly`,
+  `usage_monthly`, plus `limit` / `limit_reset` / `limit_remaining`
+- `GET /api/v1/credits` — top-up balance
+
+**Hourly** is not available from any endpoint, so it is computed locally: the
+updater appends the live usage total to `history.jsonl` each run and diffs the
+sample taken just before the current hour. It shows `—` until the widget has
+run across an hour boundary. All cost values are OpenRouter credits,
+denominated in US dollars.
+
+## Manual refresh
+
+```bash
+python3 ~/.config/omarchy/plugins/openrouter.cost/update.py
+```
+
+The fetcher writes `$XDG_STATE_HOME/openrouter-cost/overview.json`, which the
+widget watches and re-renders live.
 
 ## Files
 
-- `update.py`      — fetches OpenRouter data, writes `~/.local/state/openrouter-cost/overview.json`
-- `BarWidget.qml`  — the bar icon (today's cost), auto-refreshes every 5 min
-- `Panel.qml`      — the dropdown
-- `manifest.json`  — plugin metadata
+```
+manifest.json   plugin metadata
+BarWidget.qml   bar icon (today's spend), 5 min auto-refresh
+Panel.qml       click dropdown (hourly → all-time, limit, balance, refresh)
+update.py       OpenRouter data fetcher
+```
 
-Registered in `~/.config/omarchy/shell.json` (center section, next to qwen cost).
+## License
+
+[MIT](LICENSE)
