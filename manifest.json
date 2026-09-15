@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "openrouter.cost",
+  "name": "OpenRouter API Cost",
+  "version": "0.1.0",
+  "author": "neil",
+  "description": "Live OpenRouter API usage & cost in a bar dropdown: hourly, daily, weekly and monthly token usage and spend, plus account credit limit.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "OpenRouter API Cost",
+    "description": "Tracks OpenRouter API usage and cost. Bar shows today's spend; click opens a dropdown with hourly/daily/weekly/monthly usage, cost and credit limit.",
+    "category": "AI",
+    "aliases": [
+      "openrouter",
+      "api-cost",
+      "usage"
+    ],
+    "allowMultiple": false
+  }
+}
