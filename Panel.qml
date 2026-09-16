@@ -110,7 +110,7 @@ Panel {
     open: root.opened
     centerOnBar: false
     contentWidth: Math.max(280, Math.min(360, panel.availableCardWidth))
-    contentHeight: Math.max(120, Math.min(col.implicitHeight + 12, panel.availableCardHeight))
+    contentHeight: Math.max(120, col.implicitHeight + panel.verticalContentInset + 16)
 
     Flickable {
       id: scroll
