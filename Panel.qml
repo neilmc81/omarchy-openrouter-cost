@@ -212,6 +212,28 @@ Panel {
                 radius: 2; color: root.kRowPct(root.k2) >= 90 ? "tomato" : root.accent } }
           } }
 
+        // ---- account balance (shared keys count their account only once)
+        Rectangle { width: col.width; height: 2
+          color: Qt.rgba(root.dim.r, root.dim.g, root.dim.b, 0.25) }
+        Item { width: col.width; height: 34
+          Text { text: "Credit balance"; font.family: root.fontFamily; font.pixelSize: 12
+            color: root.fg; anchors.verticalCenter: parent.verticalCenter }
+          Text {
+            text: root.err === "" && root.credits
+                  && root.credits.total !== null && root.credits.total !== undefined
+                  && root.credits.used !== null && root.credits.used !== undefined
+                  && isFinite(Number(root.credits.total)) && isFinite(Number(root.credits.used))
+                ? root.fmtCost(Number(root.credits.total) - Number(root.credits.used)) : "—"
+            font.family: root.fontFamily; font.pixelSize: 12; font.bold: true
+            color: root.accent; anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter }
+        }
+        Text { width: col.width; wrapMode: Text.WordWrap; font.family: root.fontFamily
+          font.pixelSize: 10; color: root.dim
+          text: root.overview && root.overview.accounts
+              ? String(root.overview.keys) + " keys · " + String(root.overview.accounts)
+                + (root.overview.accounts === 1 ? " account · USD" : " accounts · USD") : "" }
+
         // ---- status
         Rectangle { width: col.width; height: 2
           color: Qt.rgba(root.dim.r, root.dim.g, root.dim.b, 0.25) }
