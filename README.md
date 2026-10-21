@@ -43,6 +43,35 @@ Management key if you want the balance, all-time and last-hour figures.
 
 ## Installation
 
+```bash
+curl -fsSL https://raw.githubusercontent.com/neilmc81/omarchy-openrouter-cost/main/install.sh | bash
+```
+
+The installer:
+
+- clones the plugin to `~/.config/omarchy/plugins/openrouter.cost` (or runs
+  `git pull --ff-only` if it's already a clone; a symlink or any other
+  existing folder is left alone)
+- asks for your API key with hidden input (Enter skips) and saves it to
+  `~/.config/openrouter-cost/key` with mode 600. It doesn't ask if a key is
+  already configured. If `OPENROUTER_API_KEY` is set, that key is used and
+  isn't written to disk.
+- backs up `~/.config/omarchy/shell.json` to `shell.json.bak-<timestamp>` and
+  adds `{ "id": "openrouter.cost" }` to the bar's right side, unless it's
+  already there
+- fetches your data once to check the key, then runs `omarchy restart shell`
+
+Options go after `bash -s --`, e.g. `... | bash -s -- --no-restart`:
+
+| Option / env                    | Effect                                        |
+|---------------------------------|-----------------------------------------------|
+| `--no-register`                 | don't edit `shell.json`; print the snippet    |
+| `--no-restart`, `OPENROUTER_COST_NO_RESTART=1` | don't restart the shell        |
+| `OMARCHY_PLUGINS_DIR`           | plugins directory (default `~/.config/omarchy/plugins`) |
+| `OPENROUTER_COST_REPO` / `OPENROUTER_COST_REF` | clone source and branch/tag (default this repo, `main`) |
+
+### Manual install
+
 The plugin folder **must be named `openrouter.cost`** (it matches the plugin
 id in `manifest.json`).
 
@@ -62,6 +91,19 @@ chmod 600 ~/.config/openrouter-cost/key
 #    then reload the shell:
 omarchy restart shell
 ```
+
+## Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/neilmc81/omarchy-openrouter-cost/main/uninstall.sh | bash
+```
+
+This removes the widget from `shell.json` (after a backup), the plugin folder
+(only if it's an unmodified git clone of this repo; symlinks are left alone),
+and the cached data in `~/.local/state/openrouter-cost`, then restarts the
+shell. It asks before deleting your keys in `~/.config/openrouter-cost`; the
+default is to keep them. `--yes` skips the question and keeps the keys;
+`--purge` deletes them. `--no-restart` works as for the installer.
 
 ## Configuration
 
@@ -137,6 +179,8 @@ manifest.json   plugin metadata
 BarWidget.qml   bar status label, 5 min auto-refresh
 Panel.qml       click dropdown (spend, per-key limits, balance, refresh)
 update.py       OpenRouter data fetcher
+install.sh      one-line installer
+uninstall.sh    uninstaller
 ```
 
 ## License
