@@ -5,7 +5,7 @@ status bar. The bar shows a small status label; clicking it opens a dropdown
 with your spend for the **last hour**, **today**, **this week** and
 **this month**, plus **per-key limits** and your **credit balance**.
 
-![OpenRouter cost widget](assets/screenshot.png)
+![OpenRouter cost widget](assets/screenshot-panel.png)
 
 Tested on Omarchy 4.0.6; 4.5-ready.
 
