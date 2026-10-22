@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "openrouter.cost",
   "name": "OpenRouter API Cost",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "Neil",
   "description": "OpenRouter API spend in an Omarchy bar dropdown: last hour, today, this week and this month, per-key limits, and credit balance.",
   "kinds": [
@@ -15,6 +15,7 @@
     "displayName": "OpenRouter API Cost",
     "description": "Tracks OpenRouter API spend. The bar shows OR (working), ⚠ (no key) or ! (error); click opens a dropdown with last-hour/today/week/month spend, per-key limits and credit balance.",
     "category": "AI",
+    "defaultSection": "right",
     "aliases": [
       "openrouter",
       "api-cost",

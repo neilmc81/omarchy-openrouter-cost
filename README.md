@@ -7,7 +7,7 @@ with your spend for the **last hour**, **today**, **this week** and
 
 ![OpenRouter cost widget](assets/screenshot.png)
 
-Tested on Omarchy 4.0.6-1.
+Tested on Omarchy 4.0.6; 4.5-ready.
 
 ## Features
 

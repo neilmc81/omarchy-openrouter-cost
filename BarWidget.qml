@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Ui
+import qs.Commons
 
 // OpenRouter API cost tracker: one bar icon showing today's spend, a dropdown
 // with hourly/daily/weekly/monthly usage & cost on click.
@@ -104,12 +105,12 @@ BarWidget {
     }
   }
 
-  BarIconButton {
+  WidgetButton {
     id: button
     anchors.fill: parent
     bar: root.bar
     text: root.barText
-    slotSize: -1
+    fontSize: Style.bar.iconFont
     tooltipText: "OpenRouter API cost — click for hourly/daily/weekly/monthly usage"
     onPressed: function(b) {
       if (b === Qt.LeftButton) {

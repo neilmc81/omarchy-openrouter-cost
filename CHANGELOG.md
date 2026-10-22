@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- Omarchy 4.5 compatibility: the bar label (`OR`, `!`) now renders at normal text size on Omarchy 4.5, which scales `BarIconButton` text down to icon size. Uses `WidgetButton`, which works the same on 4.0.6.
+- Manifest declares `defaultSection: right`, so `omarchy-plugin-add` places the widget on the right.
+
 ## 0.1.1
 
 - One-line installer (`install.sh`): clones or updates the plugin, prompts
