@@ -75,7 +75,7 @@ Panel {
 
   function statusText() {
     if (root.err === "no-api-key")
-      return "Add your OpenRouter key: ~/.config/openrouter-cost/conf.json"
+      return "No API key yet. Re-run install.sh, or put it in ~/.config/openrouter-cost/key"
     if (root.err === "no-data")
       return "No data yet — run update.py once."
     if (root.err !== "")

@@ -26,19 +26,31 @@ Tested on Omarchy 4.0.6; 4.5-ready.
 Not shown yet: the all-time (lifetime) spend is collected in
 `overview.json` but isn't displayed in the dropdown.
 
-## Regular keys vs. Management keys
+## Which key to use
 
-OpenRouter's `/api/v1/credits` endpoint may need a
-[Management key](https://openrouter.ai/settings/management-keys) and can
-return 403 for a regular API key. **With a regular (non-Management) key, the
-credit balance and last-hour figures show `—`, and the all-time figure is
-empty.** Today, this week, this month and the per-key limits still work. Use a
-Management key if you want the balance, all-time and last-hour figures.
+**Use one Management key.** Create it at
+[openrouter.ai/settings/management-keys](https://openrouter.ai/settings/management-keys)
+and the widget lists every API key on your account by itself, with each
+key's spend and limit, plus your credit balance. You don't need to paste your
+app keys one by one, and new keys show up on the next refresh. Management keys
+can't be used for model calls, so it's only for tracking. It can manage your
+other keys, though, so keep it private (the installer saves it with mode 600)
+and give it an expiry date.
+
+**A normal API key works too**, but the widget then tracks only the key(s)
+you configure. OpenRouter's `/api/v1/credits` endpoint may return 403 for a
+normal key; then the credit balance and last-hour figures show `—` and the
+all-time figure is empty. Today, this week, this month and the per-key limits
+still work.
+
+Both kinds start with `sk-or-v1-`, so the widget tells them apart by asking
+OpenRouter. The installer's check says which kind you pasted.
 
 ## Requirements
 
 - Omarchy (Quickshell-based shell with QML plugin support)
-- An [OpenRouter API key](https://openrouter.ai/settings/keys)
+- An OpenRouter [Management key](https://openrouter.ai/settings/management-keys)
+  (recommended) or a normal [API key](https://openrouter.ai/settings/keys)
 - Python 3 (only for the `update.py` data fetcher; standard library only)
 
 ## Installation
@@ -52,20 +64,27 @@ The installer:
 - clones the plugin to `~/.config/omarchy/plugins/openrouter.cost` (or runs
   `git pull --ff-only` if it's already a clone; a symlink or any other
   existing folder is left alone)
-- asks for your API key with hidden input (Enter skips) and saves it to
-  `~/.config/openrouter-cost/key` with mode 600. It doesn't ask if a key is
-  already configured. If `OPENROUTER_API_KEY` is set, that key is used and
-  isn't written to disk.
+- asks you to paste your OpenRouter Management key (hidden input, Enter
+  skips; a normal API key also works) and saves it to
+  `~/.config/openrouter-cost/key` with mode 600. If `OPENROUTER_API_KEY` is
+  set, that key is saved instead of asking. Nothing is asked or changed if a
+  key is already configured, and there's no prompt without a terminal or with
+  `--no-prompt`. A key that doesn't start with `sk-or-` gets a warning but is
+  still saved. If you skip, it prints how to add one later and the bar shows
+  `⚠` until you do.
 - backs up `~/.config/omarchy/shell.json` to `shell.json.bak-<timestamp>` and
   adds `{ "id": "openrouter.cost" }` to the bar's right side, unless it's
   already there
-- fetches your data once to check the key, then runs `omarchy restart shell`
+- fetches your data once to check the key (and says whether it's a
+  Management key or a normal one), then runs `omarchy restart shell`
 
 Options go after `bash -s --`, e.g. `... | bash -s -- --no-restart`:
 
 | Option / env                    | Effect                                        |
 |---------------------------------|-----------------------------------------------|
+| `--no-prompt`, `OPENROUTER_COST_NO_PROMPT=1` | don't ask for a key              |
 | `--no-register`                 | don't edit `shell.json`; print the snippet    |
+| `--no-verify`                   | don't fetch your data to check the key        |
 | `--no-restart`, `OPENROUTER_COST_NO_RESTART=1` | don't restart the shell        |
 | `OMARCHY_PLUGINS_DIR`           | plugins directory (default `~/.config/omarchy/plugins`) |
 | `OPENROUTER_COST_REPO` / `OPENROUTER_COST_REF` | clone source and branch/tag (default this repo, `main`) |
@@ -80,7 +99,7 @@ id in `manifest.json`).
 git clone https://github.com/neilmc81/omarchy-openrouter-cost \
     ~/.config/omarchy/plugins/openrouter.cost
 
-# 2. Add your API key (see "Configuration" for all options), e.g.
+# 2. Add your Management key (or a normal API key; see "Which key to use"), e.g.
 mkdir -p ~/.config/openrouter-cost
 printf '%s\n' 'sk-or-v1-...' > ~/.config/openrouter-cost/key
 chmod 600 ~/.config/openrouter-cost/key
@@ -107,7 +126,9 @@ default is to keep them. `--yes` skips the question and keeps the keys;
 
 ## Configuration
 
-Keys are collected from all of these sources (duplicates are ignored):
+Keys are collected from all of these sources (duplicates are ignored). If one
+of them is a working Management key, the widget shows every key on the account
+from that and ignores the others, so nothing is counted twice:
 
 | Source                                   | Format                                   |
 |------------------------------------------|------------------------------------------|
@@ -116,9 +137,8 @@ Keys are collected from all of these sources (duplicates are ignored):
 | `~/.config/openrouter-cost/conf.json`    | `{"api_key": "sk-or-..."}` or `{"api_keys": ["sk-or-...", "sk-or-..."]}` |
 | `~/.config/openrouter-cost/key`          | one key on a single line                 |
 
-Only values starting with `sk-` are used.
-
-In `conf.json` you can name your keys with an optional `names` array, in the
+With a Management key, each key is shown with the name you gave it on
+OpenRouter. With normal keys, in `conf.json` you can name your keys with an optional `names` array, in the
 same order as the keys:
 
 ```json
@@ -151,7 +171,9 @@ the next refresh (no shell restart needed).
 
 The widget uses OpenRouter's own accounting endpoints:
 
-- `GET /api/v1/auth/key` — `usage_daily`, `usage_weekly`, `usage_monthly`,
+- `GET /api/v1/keys` (Management key) — every enabled key on the account
+  with the same usage and limit fields as below
+- `GET /api/v1/auth/key` (normal key) — `usage_daily`, `usage_weekly`, `usage_monthly`,
   plus `limit` / `limit_reset` / `limit_remaining` for each key
 - `GET /api/v1/credits` — account balance and lifetime usage (may need a
   Management key; see above)

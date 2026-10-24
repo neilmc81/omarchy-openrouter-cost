@@ -33,14 +33,17 @@ have_tty() { (exec </dev/tty) 2>/dev/null; }
 
 usage() {
   cat <<'EOF'
-Usage: install.sh [--no-register] [--no-restart]
+Usage: install.sh [--no-prompt] [--no-register] [--no-restart] [--no-verify]
 
+  --no-prompt     don't ask for an API key (also skipped with no terminal)
   --no-register   don't add the widget to ~/.config/omarchy/shell.json
   --no-restart    don't run `omarchy restart shell`
+  --no-verify     don't fetch your data once to check the key
 
-Env: OPENROUTER_API_KEY / OPENROUTER_KEY (used as-is, never written to disk),
-     OPENROUTER_COST_REPO, OPENROUTER_COST_REF, OMARCHY_PLUGINS_DIR,
-     OPENROUTER_COST_NO_RESTART=1
+Env: OPENROUTER_API_KEY / OPENROUTER_KEY (saved to ~/.config/openrouter-cost/key
+     if no key is configured yet), OPENROUTER_COST_REPO, OPENROUTER_COST_REF,
+     OMARCHY_PLUGINS_DIR, OPENROUTER_COST_NO_RESTART=1,
+     OPENROUTER_COST_NO_PROMPT=1
 EOF
 }
 
@@ -75,7 +78,7 @@ try:
     keys += [str(k).strip() for k in v if k]
 except Exception:
     pass
-sys.exit(0 if any(k.startswith("sk-") for k in keys) else 1)
+sys.exit(0 if any(keys) else 1)
 PY
 }
 
@@ -165,47 +168,48 @@ install_plugin() {
   fi
 }
 
+# Light format check only: a key that fails it is still saved.
+key_looks_ok() { [[ $1 == sk-or-* ]]; }
+
+# Write $1 to the key file (mode 600). printf is a builtin, so the key never
+# appears in `ps`. Only called when no key is configured, so nothing is lost.
+save_key() {
+  (umask 077; mkdir -p "$KEY_DIR"; printf '%s\n' "$1" >"$KEY_FILE.tmp")
+  chmod 600 "$KEY_FILE.tmp"
+  mv -f "$KEY_FILE.tmp" "$KEY_FILE"
+}
+
 setup_key() {
   say "API key"
-  if [ -n "${OPENROUTER_API_KEY:-}" ] || [ -n "${OPENROUTER_KEY:-}" ]; then
-    ok "using the key from the environment (not written to disk)"
-    warn "the shell only sees it if OPENROUTER_API_KEY is set in its environment too"
-    return
-  fi
+  local later="add one later: re-run this installer, or put it in $KEY_FILE (chmod 600)"
   if key_on_disk; then
-    ok "already configured in $KEY_DIR"
+    ok "already configured in $KEY_DIR; leaving it alone"
     return
   fi
-  if ! have_tty; then
-    warn "no key found and no terminal to ask on. Add one later with:"
-    printf '       mkdir -p %s\n' "$KEY_DIR"
-    printf "       (umask 077; printf '%%s\\\\n' 'sk-or-v1-...' > %s)\n" "$KEY_FILE"
-    return
-  fi
-
-  local key="" tries=0
-  while [ $tries -lt 3 ]; do
-    tries=$((tries + 1))
-    printf '  Paste your OpenRouter API key (input hidden, Enter to skip): ' >/dev/tty
+  local key="${OPENROUTER_API_KEY:-${OPENROUTER_KEY:-}}" from="environment"
+  key=${key//[[:space:]]/}
+  if [ -z "$key" ]; then
+    if [ "$NO_PROMPT" = 1 ] || ! have_tty; then
+      warn "no API key yet, the widget will show ⚠; $later"
+      return
+    fi
+    printf '  Best: a Management key from https://openrouter.ai/settings/management-keys\n' >/dev/tty
+    printf '  It shows spending across ALL your API keys. A normal API key also works,\n' >/dev/tty
+    printf '  but then the widget only tracks that one key.\n' >/dev/tty
+    printf '  Paste your OpenRouter management key (press Enter to skip): ' >/dev/tty
     IFS= read -rs key </dev/tty || key=""
     printf '\n' >/dev/tty
     key=${key//[[:space:]]/}
-    [ -z "$key" ] && break
-    [[ $key == sk-* ]] && break
-    warn "that doesn't look like an OpenRouter key (should start with sk-)"
-    key=""
-  done
-  if [ -z "$key" ]; then
-    warn "skipped; the widget will show ⚠ until you add a key to $KEY_FILE"
-    return
+    from="prompt"
+    if [ -z "$key" ]; then
+      warn "skipped, the widget will show ⚠; $later"
+      return
+    fi
   fi
-  if [ -e "$KEY_FILE" ]; then
-    mv "$KEY_FILE" "$KEY_FILE.bak-$(date +%Y%m%d-%H%M%S)"
-    warn "moved the existing (invalid) key file aside"
-  fi
-  (umask 077; mkdir -p "$KEY_DIR"; printf '%s\n' "$key" >"$KEY_FILE")
-  chmod 600 "$KEY_FILE"
-  ok "saved to $KEY_FILE (mode 600)"
+  key_looks_ok "$key" ||
+    warn "that doesn't look like an OpenRouter key (they start with sk-or-); saving it anyway"
+  save_key "$key"
+  ok "saved the key from the $from to $KEY_FILE (mode 600)"
 }
 
 register_widget() {
@@ -223,6 +227,10 @@ register_widget() {
 
 verify_key() {
   say "Checking the key with OpenRouter"
+  if [ "$NO_VERIFY" = 1 ]; then
+    ok "skipped (--no-verify)"
+    return
+  fi
   if [ ! -f "$PLUGIN_DIR/update.py" ]; then
     warn "no update.py in $PLUGIN_DIR; skipping"
     return
@@ -232,7 +240,11 @@ verify_key() {
   local last=${out##*$'\n'}
   last=${last#openrouter-cost: }
   if [ $rc -eq 0 ]; then
-    ok "it works: fetched your spend data ($last)"
+    if [[ $last == *"management key"* ]]; then
+      ok "it works: management key, tracking every key on your account ($last)"
+    else
+      ok "it works: normal API key, tracking only the key(s) you configured ($last)"
+    fi
   elif [[ $last == "no API key configured" ]]; then
     warn "no key configured yet; the widget will show ⚠"
   else
@@ -252,9 +264,12 @@ restart_shell() {
 }
 
 main() {
-  NO_REGISTER=0 NO_RESTART=0
+  NO_REGISTER=0 NO_RESTART=0 NO_VERIFY=0
+  NO_PROMPT=0; [ "${OPENROUTER_COST_NO_PROMPT:-}" = 1 ] && NO_PROMPT=1
   for arg in "$@"; do
     case $arg in
+      --no-prompt)   NO_PROMPT=1 ;;
+      --no-verify)   NO_VERIFY=1 ;;
       --no-register) NO_REGISTER=1 ;;
       --no-restart)  NO_RESTART=1 ;;
       -h|--help)     usage; exit 0 ;;
@@ -276,7 +291,7 @@ main() {
   fi
   verify_key
   restart_shell
-  printf '%sDone.%s Click the OR label in the bar for the spend dropdown.\n' "$G" "$N"
+  printf '%sDone.%s Click the OpenRouter icon in the bar for the spend dropdown.\n' "$G" "$N"
 }
 
 # Everything runs from main so a `curl | bash` pipe is fully read before
