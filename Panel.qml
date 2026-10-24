@@ -43,10 +43,17 @@ Panel {
   readonly property real limitPercent: (root.limit !== null && root.limit !== undefined) ? Math.max(0, Math.min(100, Number(root.limit.percent || 0))) : 0
   readonly property bool limitAlarming: (root.limit !== null && root.limit !== undefined) ? (Number(root.limitPercent) >= 90) === true : false
 
-  readonly property var k0: root.overview ? root.overview.key0 : null
-  readonly property var k1: root.overview ? root.overview.key1 : null
-  readonly property var k2: root.overview ? root.overview.key2 : null
-  readonly property string kReset: root.k0 ? String(root.k0.reset || "weekly").toUpperCase() : "WEEKLY"
+  // Every key update.py found (keyBreakdown). Older overview files only
+  // have key0..key3, so fall back to those.
+  readonly property var keyRows: {
+    var o = root.overview
+    if (!o) return []
+    if (Array.isArray(o.keyBreakdown)) return o.keyBreakdown.filter(function (k) { return !!k })
+    var out = []
+    for (var i = 0; i < 4; i++) if (o["key" + i]) out.push(o["key" + i])
+    return out
+  }
+  readonly property string kReset: root.keyRows.length > 0 ? String(root.keyRows[0].reset || "weekly").toUpperCase() : "WEEKLY"
 
   function kRowText(k) {
     if (!k) return ""
@@ -110,7 +117,9 @@ Panel {
     open: root.opened
     centerOnBar: false
     contentWidth: Math.max(280, Math.min(360, panel.availableCardWidth))
-    contentHeight: Math.max(120, col.implicitHeight + panel.verticalContentInset + 16)
+    // Grows with the key rows; past the screen height the Flickable scrolls.
+    readonly property real wantedHeight: Math.max(120, col.implicitHeight + panel.verticalContentInset + 16)
+    contentHeight: panel.availableCardHeight > 0 ? Math.min(panel.wantedHeight, panel.availableCardHeight) : panel.wantedHeight
 
     Flickable {
       id: scroll
@@ -179,38 +188,26 @@ Panel {
         Rectangle { width: col.width; height: 2
           color: Qt.rgba(root.dim.r, root.dim.g, root.dim.b, 0.25) }
         Item { width: col.width; height: 26
-          visible: root.k0 !== null
+          visible: root.keyRows.length > 0
           Text { text: "Key limits · " + root.kReset; font.family: root.fontFamily
             font.pixelSize: 12; font.bold: true; color: root.fg
             anchors.verticalCenter: parent.verticalCenter } }
 
-        Item { width: col.width; height: 38; visible: root.k0 !== null
-          Column { spacing: 5
-            Text { text: root.kRowText(root.k0); font.family: root.fontFamily
-              font.pixelSize: 10; color: root.fg }
-            Rectangle { width: col.width; height: 5; radius: 2
-              color: Qt.rgba(root.dim.r, root.dim.g, root.dim.b, 0.2)
-              Rectangle { width: parent.width * (root.kRowPct(root.k0) / 100); height: parent.height
-                radius: 2; color: root.kRowPct(root.k0) >= 90 ? "tomato" : root.accent } }
-          } }
-        Item { width: col.width; height: 38; visible: root.k1 !== null
-          Column { spacing: 5
-            Text { text: root.kRowText(root.k1); font.family: root.fontFamily
-              font.pixelSize: 10; color: root.fg }
-            Rectangle { width: col.width; height: 5; radius: 2
-              color: Qt.rgba(root.dim.r, root.dim.g, root.dim.b, 0.2)
-              Rectangle { width: parent.width * (root.kRowPct(root.k1) / 100); height: parent.height
-                radius: 2; color: root.kRowPct(root.k1) >= 90 ? "tomato" : root.accent } }
-          } }
-        Item { width: col.width; height: 38; visible: root.k2 !== null
-          Column { spacing: 5
-            Text { text: root.kRowText(root.k2); font.family: root.fontFamily
-              font.pixelSize: 10; color: root.fg }
-            Rectangle { width: col.width; height: 5; radius: 2
-              color: Qt.rgba(root.dim.r, root.dim.g, root.dim.b, 0.2)
-              Rectangle { width: parent.width * (root.kRowPct(root.k2) / 100); height: parent.height
-                radius: 2; color: root.kRowPct(root.k2) >= 90 ? "tomato" : root.accent } }
-          } }
+        Repeater {
+          model: root.keyRows
+          delegate: Item {
+            id: keyRow
+            required property var modelData
+            width: parent ? parent.width : 0; height: 38
+            Column { spacing: 5
+              Text { text: root.kRowText(keyRow.modelData); font.family: root.fontFamily
+                font.pixelSize: 10; color: root.fg }
+              Rectangle { width: keyRow.width; height: 5; radius: 2
+                color: Qt.rgba(root.dim.r, root.dim.g, root.dim.b, 0.2)
+                Rectangle { width: parent.width * (root.kRowPct(keyRow.modelData) / 100); height: parent.height
+                  radius: 2; color: root.kRowPct(keyRow.modelData) >= 90 ? "tomato" : root.accent } }
+            } }
+        }
 
         // ---- account balance (shared keys count their account only once)
         Rectangle { width: col.width; height: 2
