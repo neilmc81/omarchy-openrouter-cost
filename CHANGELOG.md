@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5
+
+- The dropdown now lists every key on your account. It used to stop at three
+  rows even when a Management key found more. The popup grows with the list
+  and scrolls if it gets taller than the screen.
+
 ## 0.1.4
 
 - One Management key now covers everything: the widget lists every API key

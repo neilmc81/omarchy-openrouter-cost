@@ -16,9 +16,10 @@ Tested on Omarchy 4.0.6; 4.5-ready.
   - `⚠` — no API key configured
   - `!` — the last fetch failed (details in the dropdown)
 - Dropdown: spend for the last hour, today, this week and this month
-- Per-key limits for up to 3 keys: name, this week's spend and used/limit,
+- Per-key limits for every key on your account: name, this week's spend and used/limit,
   with a progress bar. Each OpenRouter key has its own limit and reset
-  period; the section header shows the first key's reset period.
+  period; the section header shows the first key's reset period. The
+  dropdown grows with the list and scrolls if it gets taller than the screen.
 - Credit balance (needs a Management key, see below)
 - Aggregates spend across multiple API keys / accounts
 - Auto-refreshes every 5 minutes, on click, and from a Refresh button

@@ -74,6 +74,15 @@ class UpdateTest(unittest.TestCase):
         self.assertAlmostEqual(rec["week"]["cost"], 3.0)
         self.assertEqual(rec["credits"]["total"], 20.0)
 
+    def test_management_key_reports_more_than_three_keys(self):
+        many = [dict(LISTING[0], name="Key%d" % i, label="sk-or-v1-x...%d" % i) for i in range(6)]
+        with mock.patch.dict(globals(), {"LISTING": many}):
+            rc, rec = self.run_with([MGMT])
+        self.assertEqual(rc, 0)
+        self.assertEqual(rec["keys"], 6)
+        self.assertEqual(len(rec["keyBreakdown"]), 6)  # the dropdown lists all of these
+        self.assertEqual(rec["key3"]["label"], "Key3")  # old fields kept for compatibility
+
     def test_management_key_replaces_app_keys(self):
         rc, rec = self.run_with([APP, MGMT])
         self.assertEqual(rc, 0)
