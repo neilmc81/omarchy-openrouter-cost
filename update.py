@@ -2,7 +2,9 @@
 """
 OpenRouter cost/usage updater for the Omarchy top bar plugin `openrouter.cost`.
 
-Aggregates cost across ALL configured OpenRouter API keys. Keys can share one
+With a Management key, lists every API key on the account (GET /api/v1/keys)
+and reports each one, so a single key covers everything. Otherwise it
+aggregates cost across ALL configured OpenRouter API keys. Keys can share one
 OpenRouter account, so account-level (lifetime / balance) figures are de-duped
 by identical (total_credits, total_usage); per-key rolling windows (daily,
 weekly, monthly) are summed. Sources:
@@ -15,7 +17,8 @@ weekly, monthly) are summed. Sources:
 Hourly is computed locally: the (monotonic) account lifetime total is logged on
 every run and differenced against the sample at/just before the current hour.
 
-Configuration (first match wins):
+Configuration (all sources are combined; a working Management key replaces
+the per-key view, so app keys configured next to it aren't counted twice):
   $OPENROUTER_API_KEY / $OPENROUTER_KEY
   ~/.config/openrouter-cost/conf.json:  {"api_keys": ["sk-...", "sk-..."]}
   ~/.config/openrouter-cost/key         (single key on one line)
@@ -45,7 +48,7 @@ API = "https://openrouter.ai"
 
 def load_keys():
     keys = []
-    add = lambda k: k and k.startswith("sk-") and k not in keys and keys.append(k)
+    add = lambda k: k and k not in keys and keys.append(k)
     for v in (os.environ.get("OPENROUTER_API_KEY"), os.environ.get("OPENROUTER_KEY")):
         if v:
             add(v.strip())
@@ -76,6 +79,33 @@ def fetch(key, path):
     req = urllib.request.Request(API + path, headers={"Authorization": "Bearer " + key})
     with urllib.request.urlopen(req, timeout=25) as r:
         return json.loads(r.read().decode())
+
+
+MAX_LIST_PAGES = 10  # 100 keys per page
+
+
+def list_all_keys(key):
+    """Every enabled API key on the account, via a Management key.
+
+    Returns a list of key records (same usage/limit fields as /auth/key), or
+    None if `key` isn't a working Management key.
+    """
+    out = []
+    for page in range(MAX_LIST_PAGES):
+        try:
+            got = (fetch(key, "/api/v1/keys?offset=%d" % len(out)) or {}).get("data")
+        except Exception:
+            return None if page == 0 else out
+        if not isinstance(got, list):
+            return None if page == 0 else out
+        out += [k for k in got if isinstance(k, dict) and not k.get("disabled")]
+        if len(got) < 100:
+            break
+    return out
+
+
+def is_management(kd):
+    return bool(kd.get("is_management_key") or kd.get("is_provisioning_key"))
 
 
 def num(v):
@@ -144,27 +174,28 @@ def main():
     errors = []
     keys_info = []
 
+    # Pass 1: look each key up. A Management key (flagged by /auth/key, or
+    # refused there with 401/403 but able to list keys) switches to the
+    # all-keys view.
+    looked_up = []   # (index, key, kd or None, error or None)
+    mgmt_key, listing = None, None
     for i, key in enumerate(keys):
-        # Never derive a label from the key itself (nor OpenRouter's "label",
-        # which defaults to a truncated key) -- use the configured name or Key N.
-        label = names.get(key) or "Key %d" % (i + 1)
+        kd, err, refused = None, None, False
         try:
             kd = (fetch(key, "/api/v1/auth/key") or {}).get("data") or {}
         except urllib.error.HTTPError as e:
-            errors.append(_http_error(e))
-            continue
+            err, refused = _http_error(e), e.code in (401, 403)
         except Exception as e:
-            errors.append(str(e))
-            continue
-        ok_keys += 1
+            err = str(e)
+        if (kd is not None and is_management(kd)) or refused:
+            got = list_all_keys(key)
+            if got is not None:
+                mgmt_key, listing = key, got
+                break
+        looked_up.append((i, key, kd, err))
 
-        # /credits may need a Management key (403 for ordinary keys). Its
-        # failure must not discard the per-key figures above.
-        try:
-            cd = (fetch(key, "/api/v1/credits") or {}).get("data") or None
-        except Exception:
-            cd = None
-
+    def add_key(label, kd, cd, acct_key):
+        nonlocal acct_credits, acct_usage
         win["daily"] += num(kd.get("usage_daily"))
         win["weekly"] += num(kd.get("usage_weekly"))
         win["monthly"] += num(kd.get("usage_monthly"))
@@ -187,15 +218,6 @@ def main():
             "percent": round(min(100.0, k_used / k_amt * 100), 1) if k_amt > 0 else 0.0,
             "reset": kd.get("limit_reset") or "monthly",
         })
-
-        if cd is not None:
-            acct_key = kd.get("creator_user_id") or str(
-                (round(num(cd.get("total_credits")), 3), round(num(cd.get("total_usage")), 3)))
-        else:
-            # No /credits data to de-dupe on: count this key as its own account
-            # (unless /auth/key identified the owner), so "accounts" may over-count.
-            credits_ok = False
-            acct_key = kd.get("creator_user_id") or "key-%d" % i
         if acct_key not in seen:
             seen.add(acct_key)
             if cd is not None:
@@ -207,6 +229,47 @@ def main():
             num(kd.get("usage_weekly")), num(kd.get("usage_monthly")),
             num(kd.get("limit")), limit["reset"],
             "%.1f/%.1f" % (acct_usage, acct_credits) if cd is not None else "n/a"))
+
+    if mgmt_key is not None:
+        try:
+            cd = (fetch(mgmt_key, "/api/v1/credits") or {}).get("data") or None
+        except Exception:
+            cd = None
+        credits_ok = cd is not None
+        for n, kd in enumerate(listing):
+            # "name" is the user's name for the key; "label" is a truncated
+            # key, so it's never shown.
+            label = str(kd.get("name") or "").strip() or "Key %d" % (n + 1)
+            add_key(label, kd, cd if n == 0 else None, "management")
+        ok_keys = len(listing) or 1
+        if not listing:
+            seen.add("management")
+
+    for i, key, kd, err in ([] if mgmt_key is not None else looked_up):
+        # Never derive a label from the key itself (nor OpenRouter's "label",
+        # which defaults to a truncated key) -- use the configured name or Key N.
+        label = names.get(key) or "Key %d" % (i + 1)
+        if err is not None:
+            errors.append(err)
+            continue
+        ok_keys += 1
+
+        # /credits may need a Management key (403 for ordinary keys). Its
+        # failure must not discard the per-key figures above.
+        try:
+            cd = (fetch(key, "/api/v1/credits") or {}).get("data") or None
+        except Exception:
+            cd = None
+
+        if cd is not None:
+            acct_key = kd.get("creator_user_id") or str(
+                (round(num(cd.get("total_credits")), 3), round(num(cd.get("total_usage")), 3)))
+        else:
+            # No /credits data to de-dupe on: count this key as its own account
+            # (unless /auth/key identified the owner), so "accounts" may over-count.
+            credits_ok = False
+            acct_key = kd.get("creator_user_id") or "key-%d" % i
+        add_key(label, kd, cd, acct_key)
 
     if not errors and not ok_keys:
         errors.append("all keys returned empty data")
@@ -241,7 +304,8 @@ def main():
         "credits": {"total": acct_credits, "used": acct_usage} if credits_ok
                    else {"total": None, "used": None},
         "accounts": len(seen),
-        "keys": len(keys),
+        "keys": len(listing) if mgmt_key is not None else len(keys),
+        "managementKey": mgmt_key is not None,
         "keyBreakdown": keys_info,
         "key0": keys_info[0] if len(keys_info) > 0 else None,
         "key1": keys_info[1] if len(keys_info) > 1 else None,
@@ -255,7 +319,10 @@ def main():
     if errors:
         print("openrouter-cost: %d key(s) failed: %s" % (len(errors), errors[0]))
         return 1
-    print("openrouter-cost: ok (%d key(s), %d account(s))" % (len(keys), len(seen)))
+    if mgmt_key is not None:
+        print("openrouter-cost: ok (management key, %d key(s) on the account)" % len(listing))
+    else:
+        print("openrouter-cost: ok (%d key(s), %d account(s))" % (len(keys), len(seen)))
     return 0
 
 
