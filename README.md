@@ -1,7 +1,7 @@
 # OpenRouter API Cost — Omarchy bar widget
 
 A live [OpenRouter](https://openrouter.ai) spend tracker for the Omarchy
-status bar. The bar shows a small status label; clicking it opens a dropdown
+status bar. The bar shows the OpenRouter icon; clicking it opens a dropdown
 with your spend for the **last hour**, **today**, **this week** and
 **this month**, plus **per-key limits** and your **credit balance**.
 
@@ -11,8 +11,8 @@ Tested on Omarchy 4.0.6; 4.5-ready.
 
 ## Features
 
-- Bar status label:
-  - `OR` — working, data is current
+- Bar icon:
+  - the OpenRouter mark, in your bar's text colour — working, data is current
   - `⚠` — no API key configured
   - `!` — the last fetch failed (details in the dropdown)
 - Dropdown: spend for the last hour, today, this week and this month
@@ -176,12 +176,19 @@ The widget watches `overview.json` and updates live.
 
 ```
 manifest.json   plugin metadata
-BarWidget.qml   bar status label, 5 min auto-refresh
+BarWidget.qml   bar icon, 5 min auto-refresh
 Panel.qml       click dropdown (spend, per-key limits, balance, refresh)
 update.py       OpenRouter data fetcher
 install.sh      one-line installer
 uninstall.sh    uninstaller
 ```
+
+## Credits
+
+The OpenRouter mark in the bar comes from [Simple Icons](https://simpleicons.org)
+([CC0 1.0](https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md)).
+OpenRouter is a trademark of its owner; this widget isn't affiliated with or
+endorsed by OpenRouter.
 
 ## License
 

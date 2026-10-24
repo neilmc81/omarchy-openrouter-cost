@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3
+
+- The bar now shows the OpenRouter mark instead of the `OR` text label. It's
+  drawn natively in the bar's text colour, so it follows your theme. `⚠` (no
+  key) and `!` (error) are unchanged.
+- Icon from [Simple Icons](https://simpleicons.org) (CC0).
+
 ## 0.1.2
 
 - Omarchy 4.5 compatibility: the bar label (`OR`, `!`) now renders at normal text size on Omarchy 4.5, which scales `BarIconButton` text down to icon size. Uses `WidgetButton`, which works the same on 4.0.6.
